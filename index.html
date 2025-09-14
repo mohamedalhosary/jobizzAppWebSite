@@ -1,0 +1,3457 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>JobManager - لوحة إدارة متكاملة</title>
+
+  <!-- Fonts & Icons -->
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <!-- SheetJS (for Excel export) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  
+  <!-- jsPDF (for PDF export) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+
+  <style>
+    /* ===========================
+       CSS Variables & Base Styles
+       =========================== */
+    :root {
+      /* Light Theme */
+      --bg-light: #f6f8fb;
+      --card-light: #fff;
+      --text-light: #172a3a;
+      --muted-light: #7c8aa3;
+      --border-light: #e9f1ff;
+      --primary-light: #1f6feb;
+      --accent-light: #22c1c3;
+      --danger-light: #e74c3c;
+      --success-light: #2ecc71;
+      --warning-light: #f39c12;
+      --sidebar-light: linear-gradient(180deg, #213547, #15262f);
+      
+      /* Dark Theme */
+      --bg-dark: #0f172a;
+      --card-dark: #1e293b;
+      --text-dark: #e6e6e6;
+      --muted-dark: #94a3b8;
+      --border-dark: #334155;
+      --primary-dark: #4a8eff;
+      --accent-dark: #2cd5d7;
+      --danger-dark: #ff6b6b;
+      --success-dark: #42d77d;
+      --warning-dark: #ffc107;
+      --sidebar-dark: linear-gradient(180deg, #0f172a, #0a0f1d);
+      
+      /* Active Theme (Defaults to Light) */
+      --bg: var(--bg-light);
+      --card: var(--card-light);
+      --text: var(--text-light);
+      --muted: var(--muted-light);
+      --border: var(--border-light);
+      --primary: var(--primary-light);
+      --accent: var(--accent-light);
+      --danger: var(--danger-light);
+      --success: var(--success-light);
+      --warning: var(--warning-light);
+      --sidebar: var(--sidebar-light);
+    }
+
+    [data-theme="dark"] {
+      --bg: var(--bg-dark);
+      --card: var(--card-dark);
+      --text: var(--text-dark);
+      --muted: var(--muted-dark);
+      --border: var(--border-dark);
+      --primary: var(--primary-dark);
+      --accent: var(--accent-dark);
+      --danger: var(--danger-dark);
+      --success: var(--success-dark);
+      --warning: var(--warning-dark);
+      --sidebar: var(--sidebar-dark);
+    }
+
+    * {
+      box-sizing: border-box;
+      transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, transform 0.3s ease, opacity 0.3s ease;
+    }
+    
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: 'Cairo', sans-serif;
+      direction: rtl;
+      background-color: var(--bg);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      overflow-x: hidden;
+    }
+    
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+    
+    button {
+      font-family: inherit;
+      cursor: pointer;
+    }
+
+    /* ===========================
+       Layout & Structure
+       =========================== */
+    .app {
+      display: flex;
+      min-height: 100vh;
+    }
+    
+    /* Sidebar */
+    .sidebar {
+      width: 280px;
+      background: var(--sidebar);
+      color: #fff;
+      padding: 18px;
+      position: fixed;
+      top: 0; 
+      bottom: 0; 
+      right: 0;
+      overflow: auto;
+      box-shadow: 0 8px 30px rgba(18, 33, 47, 0.18);
+      z-index: 100;
+      transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      will-change: transform, width;
+    }
+    
+    .sidebar.collapsed {
+      width: 80px;
+    }
+    
+    .sidebar.collapsed .brand h2,
+    .sidebar.collapsed .nav-text,
+    .sidebar.collapsed .muted {
+      display: none;
+    }
+    
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 18px;
+      position: relative;
+    }
+    
+    .logo {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--primary), #4aa3ff);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      color: #fff;
+      box-shadow: 0 6px 16px rgba(31, 111, 235, 0.18);
+      flex-shrink: 0;
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(1); }
+    }
+    
+    .brand h2 {
+      font-size: 16px;
+      margin: 0;
+      transition: opacity 0.3s ease;
+    }
+    
+    .toggle-sidebar {
+      position: absolute;
+      left: -10px;
+      background: var(--card);
+      border: none;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      color: var(--text);
+      transition: transform 0.3s ease;
+    }
+    
+    .toggle-sidebar:hover {
+      transform: rotate(180deg);
+    }
+    
+    .nav {
+      margin-top: 10px;
+    }
+    
+    .nav a {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px;
+      border-radius: 8px;
+      color: #dfeafb;
+      margin-bottom: 6px;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .nav a::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 3px;
+      height: 100%;
+      background: var(--accent);
+      transform: translateX(10px);
+      opacity: 0;
+      transition: all 0.3s ease;
+    }
+    
+    .nav a:hover {
+      background: rgba(255, 255, 255, 0.04);
+      transform: translateX(-6px);
+    }
+    
+    .nav a.active {
+      background: rgba(0, 0, 0, 0.12);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+    }
+    
+    .nav a.active::before {
+      transform: translateX(0);
+      opacity: 1;
+    }
+    
+    .nav i {
+      width: 28px;
+      text-align: center;
+      color: #9fb7db;
+      flex-shrink: 0;
+    }
+    
+    .nav-badge {
+      position: absolute;
+      left: 10px;
+      background: var(--accent);
+      color: white;
+      border-radius: 50%;
+      width: 18px;
+      height: 18px;
+      font-size: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: bounce 2s infinite;
+    }
+    
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-5px); }
+    }
+
+    /* Content area */
+    .content {
+      margin-right: 300px;
+      padding: 28px;
+      width: 100%;
+      transition: margin 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .content.expanded {
+      margin-right: 0;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    
+    .search {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--card);
+      padding: 10px;
+      border-radius: 10px;
+      box-shadow: 0 6px 18px rgba(16, 40, 74, 0.04);
+      width: 100%;
+      max-width: 640px;
+      border: 1px solid var(--border);
+      transition: all 0.3s ease;
+    }
+    
+    .search:focus-within {
+      box-shadow: 0 6px 18px rgba(16, 40, 74, 0.1);
+      border-color: var(--primary);
+    }
+    
+    .search input {
+      border: 0;
+      outline: 0;
+      font-size: 14px;
+      background: transparent;
+      width: 100%;
+      color: var(--text);
+    }
+    
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .theme-toggle {
+      background: var(--card);
+      border: 1px solid var(--border);
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--text);
+      transition: all 0.3s ease;
+    }
+    
+    .theme-toggle:hover {
+      transform: rotate(15deg);
+    }
+    
+    .notifications {
+      position: relative;
+    }
+    
+    .notifications-btn {
+      background: var(--card);
+      border: 1px solid var(--border);
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--text);
+      position: relative;
+      transition: all 0.3s ease;
+    }
+    
+    .notifications-btn:hover {
+      transform: translateY(-2px);
+    }
+    
+    .notification-badge {
+      position: absolute;
+      top: -5px;
+      left: -5px;
+      background: var(--danger);
+      color: white;
+      border-radius: 50%;
+      width: 18px;
+      height: 18px;
+      font-size: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: pulse 1.5s infinite;
+    }
+    
+    .notifications-dropdown {
+      position: absolute;
+      top: 50px;
+      left: 0;
+      width: 320px;
+      background: var(--card);
+      border-radius: 10px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+      z-index: 200;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-10px) scale(0.95);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      border: 1px solid var(--border);
+    }
+    
+    .notifications-dropdown.show {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0) scale(1);
+    }
+    
+    .notifications-header {
+      padding: 15px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .notifications-list {
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    
+    .notification-item {
+      padding: 12px 15px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      gap: 10px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    
+    .notification-item:hover {
+      background: rgba(0, 0, 0, 0.03);
+    }
+    
+    .notification-item.unread {
+      background: rgba(31, 111, 235, 0.05);
+    }
+    
+    .notification-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      flex-shrink: 0;
+    }
+    
+    .notification-content {
+      flex: 1;
+    }
+    
+    .notification-time {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+    
+    .notifications-footer {
+      padding: 10px 15px;
+      text-align: center;
+      border-top: 1px solid var(--border);
+    }
+    
+    .avatar {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #ffd166, #ff7b7b);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: 700;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.3s ease;
+    }
+    
+    .avatar:hover {
+      transform: scale(1.05);
+    }
+    
+    .avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    
+    .user-dropdown {
+      position: absolute;
+      top: 50px;
+      left: 0;
+      width: 200px;
+      background: var(--card);
+      border-radius: 10px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+      z-index: 200;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-10px) scale(0.95);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      border: 1px solid var(--border);
+    }
+    
+    .user-dropdown.show {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0) scale(1);
+    }
+    
+    .user-dropdown-item {
+      padding: 12px 15px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    
+    .user-dropdown-item:hover {
+      background: rgba(0, 0, 0, 0.03);
+    }
+    
+    .user-dropdown-item i {
+      width: 20px;
+      text-align: center;
+    }
+
+    /* Dashboard cards */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 18px;
+      margin-bottom: 20px;
+    }
+    
+    .card {
+      background: var(--card);
+      padding: 16px;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(18, 33, 47, 0.06);
+      transition: transform 0.3s ease, box-shadow 0.3s ease, opacity 0.5s ease;
+      cursor: default;
+      border: 1px solid var(--border);
+      opacity: 0;
+      transform: translateY(20px);
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .card::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, rgba(255,255,255,0.1), transparent);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    
+    .card:hover::after {
+      opacity: 1;
+    }
+    
+    .card.animated {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    
+    .card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 18px 40px rgba(18, 33, 47, 0.08);
+    }
+    
+    .card h3 {
+      margin: 0;
+      font-size: 14px;
+      color: var(--muted);
+    }
+    
+    .card p {
+      font-size: 20px;
+      font-weight: 700;
+      margin-top: 8px;
+      margin-bottom: 8px;
+    }
+    
+    .card-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 12px;
+      color: white;
+    }
+    
+    .card-icon.blue { background: linear-gradient(135deg, var(--primary), #4aa3ff); }
+    .card-icon.green { background: linear-gradient(135deg, var(--success), #34e0a3); }
+    .card-icon.orange { background: linear-gradient(135deg, var(--warning), #ffb347); }
+    .card-icon.red { background: linear-gradient(135deg, var(--danger), #ff7b7b); }
+
+    /* Table */
+    .table-wrap {
+      background: var(--card);
+      padding: 12px;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(18, 33, 47, 0.04);
+      overflow: auto;
+      border: 1px solid var(--border);
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+    
+    .table-wrap.animated {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    
+    th, td {
+      padding: 12px;
+      text-align: right;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+    }
+    
+    th {
+      background: var(--bg);
+      color: var(--muted);
+      font-weight: 700;
+      font-size: 13px;
+      position: sticky;
+      top: 0;
+    }
+    
+    tr {
+      opacity: 0;
+      transform: translateX(20px);
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+    
+    tr.animated {
+      opacity: 1;
+      transform: translateX(0);
+    }
+    
+    tr:hover {
+      background: rgba(0, 0, 0, 0.02);
+    }
+    
+    .badge {
+      display: inline-block;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    
+    .badge.open { background: rgba(34, 193, 195, 0.12); color: var(--accent); }
+    .badge.closed { background: rgba(231, 76, 60, 0.08); color: var(--danger); }
+    .badge.pending { background: rgba(243, 156, 18, 0.12); color: var(--warning); }
+    .badge.hired { background: rgba(46, 204, 113, 0.12); color: var(--success); }
+
+    /* Pagination */
+    .pagination {
+      display: flex;
+      justify-content: center;
+      margin-top: 20px;
+      gap: 8px;
+    }
+    
+    .pagination button {
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .pagination button:hover:not(:disabled) {
+      background: var(--primary);
+      color: white;
+      border-color: var(--primary);
+    }
+    
+    .pagination button.active {
+      background: var(--primary);
+      color: white;
+      border-color: var(--primary);
+    }
+    
+    .pagination button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Table actions */
+    .table-actions {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 15px;
+      flex-wrap: wrap;
+    }
+    
+    .export-buttons {
+      display: flex;
+      gap: 8px;
+    }
+
+    /* actions buttons */
+    .btn {
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 0;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 14px;
+      transition: all 0.2s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .btn::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 5px;
+      height: 5px;
+      background: rgba(255, 255, 255, 0.5);
+      opacity: 0;
+      border-radius: 100%;
+      transform: scale(1, 1) translate(-50%);
+      transform-origin: 50% 50%;
+    }
+    
+    .btn:focus:not(:active)::after {
+      animation: ripple 1s ease-out;
+    }
+    
+    @keyframes ripple {
+      0% {
+        transform: scale(0, 0);
+        opacity: 0.5;
+      }
+      20% {
+        transform: scale(25, 25);
+        opacity: 0.3;
+      }
+      100% {
+        opacity: 0;
+        transform: scale(40, 40);
+      }
+    }
+    
+    .btn.primary {
+      background: var(--primary);
+      color: #fff;
+    }
+    
+    .btn.primary:hover {
+      background: linear-gradient(135deg, var(--primary), #4aa3ff);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(31, 111, 235, 0.2);
+    }
+    
+    .btn.success {
+      background: var(--success);
+      color: #fff;
+    }
+    
+    .btn.success:hover {
+      background: linear-gradient(135deg, var(--success), #34e0a3);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(46, 204, 113, 0.2);
+    }
+    
+    .btn.danger {
+      background: var(--danger);
+      color: #fff;
+    }
+    
+    .btn.danger:hover {
+      background: linear-gradient(135deg, var(--danger), #ff7b7b);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(231, 76, 60, 0.2);
+    }
+    
+    .btn.warning {
+      background: var(--warning);
+      color: #fff;
+    }
+    
+    .btn.warning:hover {
+      background: linear-gradient(135deg, var(--warning), #ffb347);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(243, 156, 18, 0.2);
+    }
+    
+    .btn.ghost {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    
+    .btn.ghost:hover {
+      background: rgba(0, 0, 0, 0.03);
+      transform: translateY(-2px);
+    }
+    
+    .btn.small {
+      padding: 6px 10px;
+      font-size: 12px;
+    }
+    
+    .btn.icon {
+      padding: 8px;
+      width: 34px;
+      height: 34px;
+      justify-content: center;
+    }
+
+    /* modal */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(6, 18, 28, 0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      z-index: 1000;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s ease;
+      backdrop-filter: blur(5px);
+    }
+    
+    .modal-backdrop.show {
+      opacity: 1;
+      visibility: visible;
+    }
+    
+    .modal {
+      width: 100%;
+      max-width: 720px;
+      background: var(--card);
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 30px 60px rgba(2, 8, 23, 0.4);
+      transform: translateY(-50px) scale(0.95);
+      opacity: 0;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      border: 1px solid var(--border);
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    
+    .modal-backdrop.show .modal {
+      transform: translateY(0) scale(1);
+      opacity: 1;
+    }
+    
+    .modal h3 {
+      margin-bottom: 12px;
+      margin-top: 0;
+    }
+    
+    .form-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 15px;
+    }
+    
+    .form-control {
+      flex: 1;
+      min-width: 160px;
+    }
+    
+    .form-control label {
+      display: block;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    
+    .form-control input, .form-control textarea, .form-control select {
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      font-size: 14px;
+      outline: none;
+      color: var(--text);
+      transition: border 0.2s;
+    }
+    
+    .form-control input:focus, .form-control textarea:focus, .form-control select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(31, 111, 235, 0.1);
+    }
+    
+    .file-upload {
+      position: relative;
+      overflow: hidden;
+      display: inline-block;
+      width: 100%;
+    }
+    
+    .file-upload-btn {
+      border: 1px dashed var(--border);
+      color: var(--muted);
+      background-color: var(--bg);
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: normal;
+      width: 100%;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .file-upload-btn:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+    
+    .file-upload input[type=file] {
+      position: absolute;
+      left: 0;
+      top: 0;
+      opacity: 0;
+      width: 100%;
+      height: 100%;
+      cursor: pointer;
+    }
+    
+    .image-preview {
+      margin-top: 10px;
+      text-align: center;
+    }
+    
+    .image-preview img {
+      max-width: 100%;
+      max-height: 150px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+
+    /* toast */
+    .toast {
+      position: fixed;
+      left: 20px;
+      bottom: 20px;
+      background: var(--card);
+      color: var(--text);
+      padding: 12px 16px;
+      border-radius: 10px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      z-index: 2000;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      border: 1px solid var(--border);
+    }
+    
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    
+    .toast.success {
+      border-left: 4px solid var(--success);
+    }
+    
+    .toast.error {
+      border-left: 4px solid var(--danger);
+    }
+    
+    .toast.warning {
+      border-left: 4px solid var(--warning);
+    }
+    
+    .toast.info {
+      border-left: 4px solid var(--primary);
+    }
+    
+    .toast-icon {
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    
+    .toast.success .toast-icon {
+      background: var(--success);
+      color: white;
+    }
+    
+    .toast.error .toast-icon {
+      background: var(--danger);
+      color: white;
+    }
+    
+    .toast.warning .toast-icon {
+      background: var(--warning);
+      color: white;
+    }
+    
+    .toast.info .toast-icon {
+      background: var(--primary);
+      color: white;
+    }
+
+    /* Loading spinner */
+    .spinner {
+      width: 24px;
+      height: 24px;
+      border: 3px solid rgba(0, 0, 0, 0.1);
+      border-radius: 50%;
+      border-top: 3px solid var(--primary);
+      animation: spin 1s linear infinite;
+      display: inline-block;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* View transitions */
+    .view {
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+    
+    .view.active {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* Kanban Board */
+    .kanban-board {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 18px;
+      margin-top: 20px;
+    }
+    
+    .kanban-column {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 15px;
+      border: 1px solid var(--border);
+    }
+    
+    .kanban-column-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    
+    .kanban-column-title {
+      font-weight: 700;
+      font-size: 16px;
+    }
+    
+    .kanban-column-count {
+      background: var(--bg);
+      color: var(--muted);
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+    }
+    
+    .kanban-items {
+      min-height: 100px;
+    }
+    
+    .kanban-item {
+      background: var(--bg);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 10px;
+      border: 1px solid var(--border);
+      cursor: grab;
+      transition: all 0.2s ease;
+    }
+    
+    .kanban-item:active {
+      cursor: grabbing;
+    }
+    
+    .kanban-item:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    }
+    
+    .kanban-item-title {
+      font-weight: 600;
+      margin-bottom: 5px;
+    }
+    
+    .kanban-item-details {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    
+    .kanban-item-assignee {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      margin-top: 8px;
+      font-size: 12px;
+    }
+    
+    .kanban-item-assignee img {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+    }
+
+    /* Calendar */
+    .calendar {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 15px;
+      border: 1px solid var(--border);
+      margin-top: 20px;
+    }
+    
+    .calendar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+    
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 5px;
+    }
+    
+    .calendar-day {
+      text-align: center;
+      padding: 8px;
+      font-weight: 700;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    
+    .calendar-date {
+      text-align: center;
+      padding: 8px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    
+    .calendar-date:hover {
+      background: var(--primary);
+      color: white;
+    }
+    
+    .calendar-date.active {
+      background: var(--primary);
+      color: white;
+    }
+    
+    .calendar-date.has-event::after {
+      content: '';
+      width: 4px;
+      height: 4px;
+      background: var(--accent);
+      border-radius: 50%;
+      display: block;
+      margin: 2px auto 0;
+    }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      .sidebar {
+        transform: translateX(100%);
+        width: 260px;
+      }
+      
+      .sidebar.show {
+        transform: translateX(0);
+      }
+      
+      .content {
+        margin-right: 0;
+      }
+      
+      .mobile-menu-btn {
+        display: block;
+      }
+    }
+    
+    @media (max-width: 768px) {
+      .header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      
+      .search {
+        max-width: 100%;
+        margin-bottom: 12px;
+      }
+      
+      .actions {
+        width: 100%;
+        justify-content: space-between;
+      }
+      
+      .form-row {
+        flex-direction: column;
+      }
+      
+      .form-control {
+        width: 100%;
+      }
+      
+      .kanban-board {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Animation classes */
+    .fade-in {
+      animation: fadeIn 0.5s ease forwards;
+    }
+    
+    .slide-in-right {
+      animation: slideInRight 0.5s ease forwards;
+    }
+    
+    .slide-in-left {
+      animation: slideInLeft 0.5s ease forwards;
+    }
+    
+    .scale-in {
+      animation: scaleIn 0.5s ease forwards;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    @keyframes slideInRight {
+      from { transform: translateX(20px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    
+    @keyframes slideInLeft {
+      from { transform: translateX(-20px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    
+    @keyframes scaleIn {
+      from { transform: scale(0.9); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    /* small helpers */
+    .muted {
+      color: var(--muted);
+      font-size: 13px;
+    }
+    
+    .flex {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .space {
+      flex: 1;
+    }
+    
+    .text-center {
+      text-align: center;
+    }
+    
+    .mobile-menu-btn {
+      display: none;
+      background: var(--card);
+      border: 1px solid var(--border);
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--text);
+    }
+    
+    @media (max-width: 900px) {
+      .mobile-menu-btn {
+        display: flex;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="logo">J</div>
+      <div>
+        <h2>JobManager</h2>
+        <div class="muted">لوحة المشرف</div>
+      </div>
+      <button class="toggle-sidebar" id="toggleSidebar">
+        <i class="fas fa-chevron-left"></i>
+      </button>
+    </div>
+
+    <nav class="nav" id="mainNav">
+      <a href="#" data-view="dashboard" class="active">
+        <i class="fa fa-home"></i>
+        <span class="nav-text">الرئيسية</span>
+      </a>
+      <a href="#" data-view="jobs">
+        <i class="fa fa-briefcase"></i>
+        <span class="nav-text">الوظائف</span>
+        <span class="nav-badge">3</span>
+      </a>
+      <a href="#" data-view="clients">
+        <i class="fa fa-users"></i>
+        <span class="nav-text">العملاء</span>
+      </a>
+      <a href="#" data-view="applications">
+        <i class="fa fa-file-lines"></i>
+        <span class="nav-text">الطلبات</span>
+        <span class="nav-badge">5</span>
+      </a>
+      <a href="#" data-view="kanban">
+        <i class="fa fa-tasks"></i>
+        <span class="nav-text">لوحة المهام</span>
+      </a>
+      <a href="#" data-view="calendar">
+        <i class="fa fa-calendar"></i>
+        <span class="nav-text">التقويم</span>
+      </a>
+      <a href="#" data-view="stats">
+        <i class="fa fa-chart-simple"></i>
+        <span class="nav-text">الإحصائيات</span>
+      </a>
+      <a href="#" data-view="settings">
+        <i class="fa fa-gear"></i>
+        <span class="nav-text">الإعدادات</span>
+      </a>
+      <hr style="border:none;border-top:1px solid rgba(255,255,255,0.04);margin:12px 0">
+      <a href="#" id="logoutBtn">
+        <i class="fa fa-sign-out-alt"></i>
+        <span class="nav-text">تسجيل خروج</span>
+      </a>
+    </nav>
+  </aside>
+
+  <!-- Content -->
+  <main class="content" id="content">
+
+    <!-- Header -->
+    <div class="header">
+      <button class="mobile-menu-btn" id="mobileMenuBtn">
+        <i class="fas fa-bars"></i>
+      </button>
+      
+      <div class="search">
+        <i class="fa fa-magnifying-glass muted"></i>
+        <input type="search" id="globalSearch" placeholder="ابحث عن وظيفة، عميل، أو طلب..." />
+      </div>
+
+      <div class="actions">
+        <button class="btn primary" id="newJobBtn"><i class="fa fa-plus"></i> وظيفة جديدة</button>
+        
+        <div class="theme-toggle" id="themeToggle">
+          <i class="fas fa-moon"></i>
+        </div>
+        
+        <div class="notifications">
+          <button class="notifications-btn" id="notificationsBtn">
+            <i class="fas fa-bell"></i>
+            <span class="notification-badge">3</span>
+          </button>
+          <div class="notifications-dropdown" id="notificationsDropdown">
+            <div class="notifications-header">
+              <h4 style="margin:0">الإشعارات</h4>
+              <button class="btn small ghost">تعيين الكل كمقروء</button>
+            </div>
+            <div class="notifications-list">
+              <div class="notification-item unread">
+                <div class="notification-icon">
+                  <i class="fas fa-briefcase"></i>
+                </div>
+                <div class="notification-content">
+                  <div>وظيفة جديدة أضيفت: مبرمج React</div>
+                  <div class="notification-time">منذ 10 دقائق</div>
+                </div>
+              </div>
+              <div class="notification-item unread">
+                <div class="notification-icon" style="background: var(--success);">
+                  <i class="fas fa-user-check"></i>
+                </div>
+                <div class="notification-content">
+                  <div>تم تعيين أحمد علي في وظيفة مطور فلاتر</div>
+                  <div class="notification-time">منذ ساعة</div>
+                </div>
+              </div>
+              <div class="notification-item">
+                <div class="notification-icon" style="background: var(--warning);">
+                  <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <div class="notification-content">
+                  <div>3 طلبات جديدة تحتاج المراجعة</div>
+                  <div class="notification-time">منذ 3 ساعات</div>
+                </div>
+              </div>
+              <div class="notification-item">
+                <div class="notification-icon" style="background: var(--accent);">
+                  <i class="fas fa-calendar-check"></i>
+                </div>
+                <div class="notification-content">
+                  <div>اجتماع مع عميل جديد غدًا الساعة 10 صباحًا</div>
+                  <div class="notification-time">منذ يوم</div>
+                </div>
+              </div>
+            </div>
+            <div class="notifications-footer">
+              <a href="#" class="muted">عرض جميع الإشعارات</a>
+            </div>
+          </div>
+        </div>
+        
+        <div class="avatar" id="avatar">
+          <img id="avatarImage" src="" alt="Profile">
+          <div class="user-dropdown" id="userDropdown">
+            <div class="user-dropdown-item">
+              <i class="fas fa-user"></i>
+              <span>الملف الشخصي</span>
+            </div>
+            <div class="user-dropdown-item">
+              <i class="fas fa-cog"></i>
+              <span>الإعدادات</span>
+            </div>
+            <div class="user-dropdown-item">
+              <i class="fas fa-moon"></i>
+              <span>المظهر</span>
+            </div>
+            <hr style="border:none;border-top:1px solid var(--border);margin:5px 0">
+            <div class="user-dropdown-item" id="logoutDropdownBtn">
+              <i class="fas fa-sign-out-alt"></i>
+              <span>تسجيل خروج</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Views (rendered by JS) -->
+    <section id="viewContainer">
+
+      <!-- Dashboard view -->
+      <div id="dashboardView" class="view active">
+        <div class="grid">
+          <div class="card">
+            <div class="card-icon blue">
+              <i class="fas fa-briefcase"></i>
+            </div>
+            <h3>إجمالي الوظائف</h3>
+            <p id="statJobs">--</p>
+            <div class="muted">خلال آخر 30 يوم</div>
+          </div>
+          <div class="card">
+            <div class="card-icon green">
+              <i class="fas fa-users"></i>
+            </div>
+            <h3>إجمالي العملاء</h3>
+            <p id="statClients">--</p>
+            <div class="muted">العملاء النشطين</div>
+          </div>
+          <div class="card">
+            <div class="card-icon orange">
+              <i class="fas fa-file-lines"></i>
+            </div>
+            <h3>الطلبات الجديدة</h3>
+            <p id="statApps">--</p>
+            <div class="muted">في الانتظار</div>
+          </div>
+          <div class="card">
+            <div class="card-icon red">
+              <i class="fas fa-clock"></i>
+            </div>
+            <h3>متوسط زمن التوظيف</h3>
+            <p id="statAvg">-- يوم</p>
+            <div class="muted">من التقديم حتى التوظيف</div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 360px;gap:18px;align-items:start">
+          <div class="table-wrap">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+              <h3 style="margin:0">أحدث الوظائف</h3>
+              <a href="#" data-view="jobs" class="muted">عرض الكل »</a>
+            </div>
+            <table id="recentJobsTable">
+              <thead>
+                <tr><th>الوظيفة</th><th>العميل</th><th>المكان</th><th>الحالة</th></tr>
+              </thead>
+              <tbody>
+                <!-- rows -->
+              </tbody>
+            </table>
+          </div>
+
+          <div class="card">
+            <h3>النشاطات الأخيرة</h3>
+            <div id="activities" style="margin-top:12px;font-size:13px;color:var(--muted)"></div>
+          </div>
+        </div>
+
+        <div style="margin-top:18px" class="card">
+          <h3>رسم بياني: التوزيع الشهري للطلبات</h3>
+          <canvas id="appsChart" height="80"></canvas>
+        </div>
+      </div>
+
+      <!-- Jobs view -->
+      <div id="jobsView" class="view">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <h2>الوظائف</h2>
+          <div style="display:flex;gap:8px">
+            <select id="filterStatus" style="padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text)">
+              <option value="">كل الحالات</option>
+              <option value="open">متاحة</option>
+              <option value="closed">مغلقة</option>
+            </select>
+            <button class="btn primary" id="addJobBtn">إضافة وظيفة</button>
+          </div>
+        </div>
+
+        <div class="table-actions">
+          <div class="export-buttons">
+            <button class="btn success small" id="exportExcelBtn"><i class="fas fa-file-excel"></i> Excel</button>
+            <button class="btn danger small" id="exportPdfBtn"><i class="fas fa-file-pdf"></i> PDF</button>
+          </div>
+          <div class="space"></div>
+          <div class="search">
+            <i class="fa fa-magnifying-glass muted"></i>
+            <input type="search" id="jobsSearch" placeholder="ابحث في الوظائف..." />
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table id="jobsTable">
+            <thead><tr><th>العنوان</th><th>العميل</th><th>الموقع</th><th>الراتب</th><th>النوع</th><th>الإجراءات</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <div class="pagination" id="jobsPagination">
+          <button class="btn ghost" id="jobsPrevBtn" disabled>السابق</button>
+          <div id="jobsPageNumbers"></div>
+          <button class="btn ghost" id="jobsNextBtn">التالي</button>
+        </div>
+      </div>
+
+      <!-- Clients view -->
+      <div id="clientsView" class="view">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <h2>العملاء</h2>
+          <button class="btn primary" id="addClientBtn">إضافة عميل</button>
+        </div>
+
+        <div class="table-actions">
+          <div class="export-buttons">
+            <button class="btn success small" id="exportClientsExcelBtn"><i class="fas fa-file-excel"></i> Excel</button>
+            <button class="btn danger small" id="exportClientsPdfBtn"><i class="fas fa-file-pdf"></i> PDF</button>
+          </div>
+          <div class="space"></div>
+          <div class="search">
+            <i class="fa fa-magnifying-glass muted"></i>
+            <input type="search" id="clientsSearch" placeholder="ابحث في العملاء..." />
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table id="clientsTable">
+            <thead><tr><th>الصورة</th><th>الاسم</th><th>الشركة</th><th>الهاتف</th><th>البريد</th><th>الإجراءات</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <div class="pagination" id="clientsPagination">
+          <button class="btn ghost" id="clientsPrevBtn" disabled>السابق</button>
+          <div id="clientsPageNumbers"></div>
+          <button class="btn ghost" id="clientsNextBtn">التالي</button>
+        </div>
+      </div>
+
+      <!-- Applications view -->
+      <div id="applicationsView" class="view">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <h2>طلبات التوظيف</h2>
+        </div>
+
+        <div class="table-actions">
+          <div class="export-buttons">
+            <button class="btn success small" id="exportAppsExcelBtn"><i class="fas fa-file-excel"></i> Excel</button>
+            <button class="btn danger small" id="exportAppsPdfBtn"><i class="fas fa-file-pdf"></i> PDF</button>
+          </div>
+          <div class="space"></div>
+          <div class="search">
+            <i class="fa fa-magnifying-glass muted"></i>
+            <input type="search" id="appsSearch" placeholder="ابحث في الطلبات..." />
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table id="appsTable">
+            <thead><tr><th>المتقدم</th><th>الوظيفة</th><th>البريد</th><th>الحالة</th><th>الإجراءات</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <div class="pagination" id="appsPagination">
+          <button class="btn ghost" id="appsPrevBtn" disabled>السابق</button>
+          <div id="appsPageNumbers"></div>
+          <button class="btn ghost" id="appsNextBtn">التالي</button>
+        </div>
+      </div>
+
+      <!-- Kanban view -->
+      <div id="kanbanView" class="view">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <h2>لوحة المهام</h2>
+          <button class="btn primary" id="addTaskBtn">إضافة مهمة</button>
+        </div>
+
+        <div class="kanban-board" id="kanbanBoard">
+          <div class="kanban-column">
+            <div class="kanban-column-header">
+              <div class="kanban-column-title">المفتوحة</div>
+              <div class="kanban-column-count">3</div>
+            </div>
+            <div class="kanban-items" id="kanban-open">
+              <div class="kanban-item">
+                <div class="kanban-item-title">مراجعة طلبات التوظيف</div>
+                <div class="kanban-item-details">هناك 5 طلبات جديدة تحتاج المراجعة</div>
+                <div class="kanban-item-assignee">
+                  <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0yMCAyMXYtMmE0IDQgMCAwIDAtNC00SDhhNCA0IDAgMCAwLTQgNHYyIj48L3BhdGg+PGNpcmNsZSBjeD0iMTIiIGN5PSI3IiByPSI0Ij48L2NpcmNsZT48L3N2Zz4=" alt="User">
+                  <span>أحمد</span>
+                </div>
+              </div>
+              <div class="kanban-item">
+                <div class="kanban-item-title">مقابلة مبرمجين</div>
+                <div class="kanban-item-details">ترتيب مقابلات مع المتقدمين للوظائف</div>
+                <div class="kanban-item-assignee">
+                  <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0yMCAyMXYtMmE0IDQgMCAwIDAtNC00SDhhNCA0IDAgMCAwLTQgNHYyIj48L3BhdGg+PGNpcmNsZSBjeD0iMTIiIGN5PSI3IiByPSI0Ij48L2NpcmNsZT48L3N2Zz4=" alt="User">
+                  <span>سارة</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="kanban-column">
+            <div class="kanban-column-header">
+              <div class="kanban-column-title">قيد التنفيذ</div>
+              <div class="kanban-column-count">2</div>
+            </div>
+            <div class="kanban-items" id="kanban-progress">
+              <div class="kanban-item">
+                <div class="kanban-item-title">تصفية المرشحين</div>
+                <div class="kanban-item-details">تصفية قائمة المرشحين للجولة الثانية</div>
+                <div class="kanban-item-assignee">
+                  <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0yMCAyMXYtMmE0IDQgMCAwIDAtNC00SDhhNCA0IDAgMCAwLTQgNHYyIj48L3BhdGg+PGNpcmNsZSBjeD0iMTIiIGN5PSI3IiByPSI0Ij48L2NpcmNsZT48L3N2Zz4=" alt="User">
+                  <span>محمد</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="kanban-column">
+            <div class="kanban-column-header">
+              <div class="kanban-column-title">مكتملة</div>
+              <div class="kanban-column-count">4</div>
+            </div>
+            <div class="kanban-items" id="kanban-done">
+              <div class="kanban-item">
+                <div class="kanban-item-title">تعيين مدير مشاريع</div>
+                <div class="kanban-item-details">تم تعيين مدير مشاريع جديد</div>
+                <div class="kanban-item-assignee">
+                  <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI4IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0yMCAyMXYtMmE0IDQgMCAwIDAtNC00SDhhNCA0IDAgMCAwLTQgNHYyIj48L3BhdGg+PGNpcmNsZSBjeD0iMTIiIGN5PSI3IiByPSI0Ij48L2NpcmNsZT48L3N2Zz4=" alt="User">
+                  <span>فاطمة</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Calendar view -->
+      <div id="calendarView" class="view">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <h2>التقويم</h2>
+          <button class="btn primary" id="addEventBtn">إضافة حدث</button>
+        </div>
+
+        <div class="calendar">
+          <div class="calendar-header">
+            <button class="btn ghost" id="prevMonthBtn"><i class="fas fa-chevron-right"></i></button>
+            <h3 id="calendarMonth">شهر 2023</h3>
+            <button class="btn ghost" id="nextMonthBtn"><i class="fas fa-chevron-left"></i></button>
+          </div>
+          <div class="calendar-grid">
+            <div class="calendar-day">أحد</div>
+            <div class="calendar-day">اثنين</div>
+            <div class="calendar-day">ثلاثاء</div>
+            <div class="calendar-day">أربعاء</div>
+            <div class="calendar-day">خميس</div>
+            <div class="calendar-day">جمعة</div>
+            <div class="calendar-day">سبت</div>
+            <!-- Calendar dates will be populated by JavaScript -->
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:20px">
+          <h3>الأحداث القادمة</h3>
+          <div id="upcomingEvents">
+            <div class="notification-item">
+              <div class="notification-icon" style="background: var(--primary);">
+                <i class="fas fa-briefcase"></i>
+              </div>
+              <div class="notification-content">
+                <div>مقابلة مع مبرمجين - 10:00 صباحاً</div>
+                <div class="notification-time">غداً</div>
+              </div>
+            </div>
+            <div class="notification-item">
+              <div class="notification-icon" style="background: var(--accent);">
+                <i class="fas fa-handshake"></i>
+              </div>
+              <div class="notification-content">
+                <div>اجتماع مع عميل جديد - 2:00 مساءً</div>
+                <div class="notification-time">بعد غد</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stats view -->
+      <div id="statsView" class="view">
+        <h2>الإحصائيات المتقدمة</h2>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px;margin-top:12px">
+          <div class="card"><h3>معدل التوظيف حسب الشهر</h3><canvas id="hireChart" height="120"></canvas></div>
+          <div class="card"><h3>أفضل العملاء من حيث عدد الوظائف</h3><canvas id="clientsChart" height="120"></canvas></div>
+          <div class="card"><h3>توزيع أنواع الوظائف</h3><canvas id="jobsTypeChart" height="120"></canvas></div>
+          <div class="card"><h3>حالات الطلبات</h3><canvas id="appsStatusChart" height="120"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Settings view -->
+      <div id="settingsView" class="view">
+        <h2>الإعدادات</h2>
+        <div class="card" style="margin-top:12px">
+          <h3>إعدادات الحساب</h3>
+          <div class="muted">تواصل مع الإعدادات هنا — مثال حفظ تفضيلات العرض، تكوين SMTP، تكامل S3، إلخ.</div>
+        </div>
+
+        <div class="card" style="margin-top:20px">
+          <h3>رفع صورة الملف الشخصي</h3>
+          <div class="form-control">
+            <div class="file-upload">
+              <div class="file-upload-btn">
+                <i class="fas fa-cloud-upload-alt"></i> اختر صورة
+              </div>
+              <input type="file" id="avatarUpload" accept="image/*" />
+            </div>
+            <div class="image-preview" id="avatarPreview"></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:20px">
+          <h3>تفضيلات النظام</h3>
+          <div class="form-row">
+            <div class="form-control">
+              <label>لغة الواجهة</label>
+              <select>
+                <option value="ar">العربية</option>
+                <option value="en">English</option>
+              </select>
+            </div>
+            <div class="form-control">
+              <label>التوقيت</label>
+              <select>
+                <option value="+3">UTC +3 (السعودية، مصر)</option>
+                <option value="+4">UTC +4 (الإمارات)</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-control">
+              <label>عدد العناصر في الصفحة</label>
+              <input type="number" value="10" min="5" max="50">
+            </div>
+            <div class="form-control">
+              <label>تنسيق التاريخ</label>
+              <select>
+                <option value="dd/mm/yyyy">يوم/شهر/سنة</option>
+                <option value="mm/dd/yyyy">شهر/يوم/سنة</option>
+                <option value="yyyy-mm-dd">سنة-شهر-يوم</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+</div>
+
+<!-- Modal (Create/Edit Job/Client/Application) -->
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal" id="modalContent">
+    <h3 id="modalTitle">عنوان</h3>
+    <form id="modalForm">
+      <div class="form-row" id="modalFormFields">
+        <!-- dynamic fields -->
+      </div>
+      <div style="display:flex;justify-content:flex-start;gap:8px;margin-top:12px">
+        <button type="submit" class="btn primary">حفظ</button>
+        <button type="button" class="btn ghost" onclick="closeModal()">إلغاء</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- toast -->
+<div class="toast" id="toast">
+  <div class="toast-icon">
+    <i class="fas fa-check"></i>
+  </div>
+  <div id="toastMessage">تمت العملية</div>
+</div>
+
+<script>
+// ===========================
+// Configuration & State
+// ===========================
+
+const API_BASE = 'http://localhost:5000/api'; // عدّل لو السيرفر عندك مختلف
+let state = {
+  user: null,
+  token: localStorage.getItem('jm_token') || null,
+  jobs: [],
+  clients: [],
+  applications: [],
+  currentView: 'dashboard',
+  theme: localStorage.getItem('jm_theme') || 'light',
+  notifications: [
+    { id: 1, type: 'job', title: 'وظيفة جديدة أضيفت: مبرمج React', time: 'منذ 10 دقائق', read: false, icon: 'briefcase' },
+    { id: 2, type: 'hire', title: 'تم تعيين أحمد علي في وظيفة مطور فلاتر', time: 'منذ ساعة', read: false, icon: 'user-check' },
+    { id: 3, type: 'warning', title: '3 طلبات جديدة تحتاج المراجعة', time: 'منذ 3 ساعات', read: true, icon: 'exclamation-triangle' },
+    { id: 4, type: 'meeting', title: 'اجتماع مع عميل جديد غدًا الساعة 10 صباحًا', time: 'منذ يوم', read: true, icon: 'calendar-check' }
+  ],
+  // Pagination state
+  pagination: {
+    jobs: { currentPage: 1, itemsPerPage: 5, totalPages: 1, filteredData: [] },
+    clients: { currentPage: 1, itemsPerPage: 5, totalPages: 1, filteredData: [] },
+    applications: { currentPage: 1, itemsPerPage: 5, totalPages: 1, filteredData: [] }
+  },
+  // Calendar state
+  calendar: {
+    currentDate: new Date(),
+    events: [
+      { id: 1, title: 'مقابلة مع مبرمجين', date: new Date(new Date().setDate(new Date().getDate() + 1)), time: '10:00 صباحاً' },
+      { id: 2, title: 'اجتماع مع عميل جديد', date: new Date(new Date().setDate(new Date().getDate() + 2)), time: '2:00 مساءً' },
+      { id: 3, title: 'انتهاء تقديم الوظائف', date: new Date(new Date().setDate(new Date().getDate() + 5)), time: '11:59 مساءً' }
+    ]
+  }
+};
+
+// Initialize theme
+document.documentElement.setAttribute('data-theme', state.theme);
+if (state.theme === 'dark') {
+  document.getElementById('themeToggle').innerHTML = '<i class="fas fa-sun"></i>';
+}
+
+// ===========================
+// Utilities
+// ===========================
+
+function showToast(text, type = 'success', ms = 3000) {
+  const toast = document.getElementById('toast');
+  const toastMessage = document.getElementById('toastMessage');
+  const toastIcon = toast.querySelector('.toast-icon i');
+  
+  toastMessage.textContent = text;
+  toast.className = 'toast ' + type;
+  
+  // Set icon based on type
+  if (type === 'success') {
+    toastIcon.className = 'fas fa-check';
+  } else if (type === 'error') {
+    toastIcon.className = 'fas fa-exclamation-circle';
+  } else if (type === 'warning') {
+    toastIcon.className = 'fas fa-exclamation-triangle';
+  } else {
+    toastIcon.className = 'fas fa-info-circle';
+  }
+  
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), ms);
+}
+
+function setToken(token) {
+  state.token = token;
+  if (token) localStorage.setItem('jm_token', token); 
+  else localStorage.removeItem('jm_token');
+}
+
+function authHeaders() {
+  return state.token ? { 'Authorization': 'Bearer ' + state.token } : {};
+}
+
+function apiFetch(path, opts = {}) {
+  const headers = opts.headers || {};
+  opts.headers = { 'Content-Type': 'application/json', ...headers, ...authHeaders() };
+  return fetch(API_BASE + path, opts).then(async res => {
+    const text = await res.text();
+    let data = null;
+    try { data = text ? JSON.parse(text) : null; } catch(e){ data = text; }
+    if (!res.ok) throw { status: res.status, data };
+    return data;
+  });
+}
+
+// ===========================
+// Theme Management
+// ===========================
+
+function toggleTheme() {
+  if (state.theme === 'light') {
+    state.theme = 'dark';
+    document.documentElement.setAttribute('data-theme', 'dark');
+    document.getElementById('themeToggle').innerHTML = '<i class="fas fa-sun"></i>';
+    localStorage.setItem('jm_theme', 'dark');
+    showToast('تم تفعيل الوضع الليلي', 'success');
+  } else {
+    state.theme = 'light';
+    document.documentElement.setAttribute('data-theme', 'light');
+    document.getElementById('themeToggle').innerHTML = '<i class="fas fa-moon"></i>';
+    localStorage.setItem('jm_theme', 'light');
+    showToast('تم تفعيل الوضع النهاري', 'success');
+  }
+}
+
+// ===========================
+// Notifications Management
+// ===========================
+
+function toggleNotifications() {
+  const dropdown = document.getElementById('notificationsDropdown');
+  dropdown.classList.toggle('show');
+}
+
+function markNotificationAsRead(id) {
+  const notification = state.notifications.find(n => n.id === id);
+  if (notification) {
+    notification.read = true;
+    updateNotificationBadge();
+  }
+}
+
+function updateNotificationBadge() {
+  const unreadCount = state.notifications.filter(n => !n.read).length;
+  const badge = document.querySelector('.notification-badge');
+  if (unreadCount > 0) {
+    badge.textContent = unreadCount;
+    badge.style.display = 'flex';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+// ===========================
+// User Dropdown
+// ===========================
+
+function toggleUserDropdown() {
+  const dropdown = document.getElementById('userDropdown');
+  dropdown.classList.toggle('show');
+}
+
+// ===========================
+// Sidebar Management
+// ===========================
+
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const content = document.getElementById('content');
+  const toggleIcon = document.querySelector('.toggle-sidebar i');
+  
+  sidebar.classList.toggle('collapsed');
+  
+  if (sidebar.classList.contains('collapsed')) {
+    toggleIcon.className = 'fas fa-chevron-right';
+    content.classList.remove('expanded');
+  } else {
+    toggleIcon.className = 'fas fa-chevron-left';
+    if (window.innerWidth < 900) {
+      content.classList.add('expanded');
+    }
+  }
+}
+
+function toggleMobileSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  sidebar.classList.toggle('show');
+}
+
+// ===========================
+// Routing (view switching)
+// ===========================
+
+const views = {
+  dashboard: document.getElementById('dashboardView'),
+  jobs: document.getElementById('jobsView'),
+  clients: document.getElementById('clientsView'),
+  applications: document.getElementById('applicationsView'),
+  kanban: document.getElementById('kanbanView'),
+  calendar: document.getElementById('calendarView'),
+  stats: document.getElementById('statsView'),
+  settings: document.getElementById('settingsView')
+};
+
+function showView(name) {
+  // Hide all views
+  Object.keys(views).forEach(k => {
+    views[k].classList.remove('active');
+    views[k].style.display = 'none';
+  });
+  
+  // Show selected view
+  views[name].style.display = 'block';
+  setTimeout(() => {
+    views[name].classList.add('active');
+  }, 50);
+  
+  // Update nav active state
+  document.querySelectorAll('#mainNav a').forEach(a => {
+    a.classList.toggle('active', a.dataset.view === name);
+  });
+  
+  // Load data for the view
+  state.currentView = name;
+  if (name === 'jobs') loadJobs();
+  if (name === 'clients') loadClients();
+  if (name === 'applications') loadApplications();
+  if (name === 'dashboard') loadDashboard();
+  if (name === 'stats') renderStatsCharts();
+  if (name === 'calendar') renderCalendar();
+  
+  // Animate cards and tables
+  setTimeout(animateElements, 100);
+}
+
+function animateElements() {
+  // Animate cards
+  document.querySelectorAll('.card').forEach((card, index) => {
+    setTimeout(() => {
+      card.classList.add('animated');
+    }, index * 100);
+  });
+  
+  // Animate table wraps
+  document.querySelectorAll('.table-wrap').forEach((wrap, index) => {
+    setTimeout(() => {
+      wrap.classList.add('animated');
+    }, index * 100);
+  });
+  
+  // Animate table rows
+  document.querySelectorAll('tbody tr').forEach((row, index) => {
+    setTimeout(() => {
+      row.classList.add('animated');
+    }, index * 50);
+  });
+}
+
+// ===========================
+// Modal handling
+// ===========================
+
+function openModal(title, fields = [], onSubmit) {
+  const modalBackdrop = document.getElementById('modalBackdrop');
+  const modalTitle = document.getElementById('modalTitle');
+  const formFields = document.getElementById('modalFormFields');
+  
+  modalTitle.textContent = title;
+  formFields.innerHTML = '';
+  
+  fields.forEach(f => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'form-control';
+    wrapper.innerHTML = `<label>${f.label}</label>`;
+    
+    if (f.type === 'textarea') {
+      wrapper.innerHTML += `<textarea name="${f.name}" placeholder="${f.placeholder || ''}">${f.value || ''}</textarea>`;
+    } else if (f.type === 'select') {
+      let options = f.options.map(o => `<option value="${o.value}" ${f.value === o.value ? 'selected' : ''}>${o.label}</option>`).join('');
+      wrapper.innerHTML += `<select name="${f.name}">${options}</select>`;
+    } else if (f.type === 'file') {
+      wrapper.innerHTML = `
+        <label>${f.label}</label>
+        <div class="file-upload">
+          <div class="file-upload-btn">
+            <i class="fas fa-cloud-upload-alt"></i> ${f.placeholder || 'اختر ملف'}
+          </div>
+          <input type="file" name="${f.name}" accept="${f.accept || '*'}" />
+        </div>
+        <div class="image-preview" id="${f.name}Preview"></div>
+      `;
+    } else {
+      wrapper.innerHTML += `<input name="${f.name}" value="${f.value || ''}" type="${f.type || 'text'}" placeholder="${f.placeholder || ''}" />`;
+    }
+    
+    formFields.appendChild(wrapper);
+  });
+  
+  // Add file preview handlers
+  fields.filter(f => f.type === 'file').forEach(f => {
+    const fileInput = formFields.querySelector(`input[name="${f.name}"]`);
+    if (fileInput) {
+      fileInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+          const preview = document.getElementById(`${f.name}Preview`);
+          if (file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+              preview.innerHTML = `<img src="${e.target.result}" alt="Preview">`;
+            };
+            reader.readAsDataURL(file);
+          } else {
+            preview.innerHTML = `<div class="muted">${file.name}</div>`;
+          }
+        }
+      });
+    }
+  });
+  
+  // Submit handler
+  const modalForm = document.getElementById('modalForm');
+  modalForm.onsubmit = async (e) => {
+    e.preventDefault();
+    const data = new FormData(modalForm);
+    const formDataObj = {};
+    
+    for (let [key, value] of data.entries()) {
+      formDataObj[key] = value;
+    }
+    
+    // Handle file uploads
+    const fileFields = fields.filter(f => f.type === 'file');
+    for (let field of fileFields) {
+      const fileInput = modalForm.querySelector(`input[name="${field.name}"]`);
+      if (fileInput && fileInput.files.length > 0) {
+        formDataObj[field.name] = fileInput.files[0];
+      }
+    }
+    
+    try {
+      await onSubmit(formDataObj);
+      closeModal();
+    } catch (err) {
+      console.error(err);
+      showToast('خطأ في الحفظ', 'error');
+    }
+  };
+  
+  modalBackdrop.classList.add('show');
+}
+
+function closeModal() {
+  const modalBackdrop = document.getElementById('modalBackdrop');
+  modalBackdrop.classList.remove('show');
+}
+
+// ===========================
+// Pagination functions
+// ===========================
+
+function setupPagination(dataType) {
+  const pagination = state.pagination[dataType];
+  const data = pagination.filteredData.length > 0 ? pagination.filteredData : state[dataType];
+  
+  pagination.totalPages = Math.ceil(data.length / pagination.itemsPerPage);
+  
+  // Update pagination controls
+  const prevBtn = document.getElementById(`${dataType}PrevBtn`);
+  const nextBtn = document.getElementById(`${dataType}NextBtn`);
+  const pageNumbers = document.getElementById(`${dataType}PageNumbers`);
+  
+  prevBtn.disabled = pagination.currentPage === 1;
+  nextBtn.disabled = pagination.currentPage === pagination.totalPages;
+  
+  // Generate page numbers
+  pageNumbers.innerHTML = '';
+  const maxVisiblePages = 5;
+  let startPage = Math.max(1, pagination.currentPage - Math.floor(maxVisiblePages / 2));
+  let endPage = Math.min(pagination.totalPages, startPage + maxVisiblePages - 1);
+  
+  if (endPage - startPage + 1 < maxVisiblePages) {
+    startPage = Math.max(1, endPage - maxVisiblePages + 1);
+  }
+  
+  for (let i = startPage; i <= endPage; i++) {
+    const pageBtn = document.createElement('button');
+    pageBtn.className = `btn ghost ${i === pagination.currentPage ? 'active' : ''}`;
+    pageBtn.textContent = i;
+    pageBtn.onclick = () => goToPage(dataType, i);
+    pageNumbers.appendChild(pageBtn);
+  }
+  
+  // Render current page
+  renderCurrentPage(dataType);
+}
+
+function goToPage(dataType, page) {
+  state.pagination[dataType].currentPage = page;
+  setupPagination(dataType);
+}
+
+function renderCurrentPage(dataType) {
+  const pagination = state.pagination[dataType];
+  const data = pagination.filteredData.length > 0 ? pagination.filteredData : state[dataType];
+  const startIndex = (pagination.currentPage - 1) * pagination.itemsPerPage;
+  const endIndex = Math.min(startIndex + pagination.itemsPerPage, data.length);
+  const currentItems = data.slice(startIndex, endIndex);
+  
+  // Render the items
+  if (dataType === 'jobs') {
+    renderJobsTable(currentItems);
+  } else if (dataType === 'clients') {
+    renderClientsTable(currentItems);
+  } else if (dataType === 'applications') {
+    renderApplicationsTable(currentItems);
+  }
+}
+
+// ===========================
+// Search functionality
+// ===========================
+
+function setupSearch(dataType, searchInputId, searchFunction) {
+  const searchInput = document.getElementById(searchInputId);
+  searchInput.addEventListener('input', (e) => {
+    const query = e.target.value.trim().toLowerCase();
+    if (query) {
+      state.pagination[dataType].filteredData = searchFunction(query);
+    } else {
+      state.pagination[dataType].filteredData = [];
+    }
+    state.pagination[dataType].currentPage = 1;
+    setupPagination(dataType);
+  });
+}
+
+function searchJobs(query) {
+  return state.jobs.filter(job => 
+    (job.title || '').toLowerCase().includes(query) || 
+    (job.description || '').toLowerCase().includes(query) ||
+    ((job.client && job.client.name) || '').toLowerCase().includes(query) ||
+    (job.location || '').toLowerCase().includes(query)
+  );
+}
+
+function searchClients(query) {
+  return state.clients.filter(client => 
+    (client.name || '').toLowerCase().includes(query) || 
+    (client.company || '').toLowerCase().includes(query) ||
+    (client.email || '').toLowerCase().includes(query) ||
+    (client.phone || '').toLowerCase().includes(query)
+  );
+}
+
+function searchApplications(query) {
+  return state.applications.filter(app => 
+    (app.applicantName || '').toLowerCase().includes(query) || 
+    (app.email || '').toLowerCase().includes(query) ||
+    (((app.job && app.job.title) || app.jobTitle) || '').toLowerCase().includes(query)
+  );
+}
+
+// ===========================
+// Export functionality
+// ===========================
+
+function exportToExcel(data, fileName, columns) {
+  try {
+    // Prepare data for export
+    const exportData = data.map(item => {
+      const row = {};
+      columns.forEach(col => {
+        if (col.accessor) {
+          row[col.header] = col.accessor(item);
+        } else {
+          row[col.header] = item[col.key] || '';
+        }
+      });
+      return row;
+    });
+    
+    // Create worksheet
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    
+    // Create workbook
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Data");
+    
+    // Export to file
+    XLSX.writeFile(wb, `${fileName}.xlsx`);
+    showToast('تم تصدير البيانات إلى Excel', 'success');
+  } catch (error) {
+    console.error('Excel export error:', error);
+    showToast('فشل في التصدير إلى Excel', 'error');
+  }
+}
+
+function exportToPDF(data, fileName, columns) {
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    
+    // Add title
+    doc.setFontSize(16);
+    doc.text(fileName, 14, 15);
+    
+    // Prepare data for export
+    const exportData = data.map(item => {
+      return columns.map(col => {
+        if (col.accessor) {
+          return col.accessor(item);
+        } else {
+          return item[col.key] || '';
+        }
+      });
+    });
+    
+    // Add table
+    doc.autoTable({
+      head: [columns.map(col => col.header)],
+      body: exportData,
+      startY: 20,
+      styles: { font: 'Cairo', halign: 'right' },
+      headStyles: { fillColor: [31, 111, 235] }
+    });
+    
+    // Save PDF
+    doc.save(`${fileName}.pdf`);
+    showToast('تم تصدير البيانات إلى PDF', 'success');
+  } catch (error) {
+    console.error('PDF export error:', error);
+    showToast('فشل في التصدير إلى PDF', 'error');
+  }
+}
+
+// ===========================
+// Image handling
+// ===========================
+
+function handleImageUpload(event, previewId) {
+  const file = event.target.files[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const preview = document.getElementById(previewId);
+      preview.innerHTML = `<img src="${e.target.result}" alt="Preview" style="max-width: 100%; max-height: 150px; border-radius: 8px;">`;
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
+// ===========================
+// Calendar functions
+// ===========================
+
+function renderCalendar() {
+  const calendarGrid = document.querySelector('.calendar-grid');
+  const calendarMonth = document.getElementById('calendarMonth');
+  
+  // Clear existing dates (keep day headers)
+  while (calendarGrid.children.length > 7) {
+    calendarGrid.removeChild(calendarGrid.lastChild);
+  }
+  
+  const currentDate = state.calendar.currentDate;
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+  
+  // Set month name
+  const monthNames = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+                     'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+  calendarMonth.textContent = `${monthNames[month]} ${year}`;
+  
+  // Get first day of month and number of days
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  
+  // Create empty cells for days before first day of month
+  for (let i = 0; i < firstDay; i++) {
+    const emptyCell = document.createElement('div');
+    emptyCell.className = 'calendar-date';
+    calendarGrid.appendChild(emptyCell);
+  }
+  
+  // Create cells for each day of the month
+  for (let i = 1; i <= daysInMonth; i++) {
+    const dateCell = document.createElement('div');
+    dateCell.className = 'calendar-date';
+    dateCell.textContent = i;
+    
+    // Check if this date has events
+    const dateHasEvents = state.calendar.events.some(event => {
+      const eventDate = event.date;
+      return eventDate.getDate() === i && 
+             eventDate.getMonth() === month && 
+             eventDate.getFullYear() === year;
+    });
+    
+    if (dateHasEvents) {
+      dateCell.classList.add('has-event');
+    }
+    
+    // Check if this is today
+    const today = new Date();
+    if (i === today.getDate() && month === today.getMonth() && year === today.getFullYear()) {
+      dateCell.classList.add('active');
+    }
+    
+    calendarGrid.appendChild(dateCell);
+  }
+}
+
+function changeMonth(direction) {
+  const currentDate = state.calendar.currentDate;
+  if (direction === 'next') {
+    currentDate.setMonth(currentDate.getMonth() + 1);
+  } else {
+    currentDate.setMonth(currentDate.getMonth() - 1);
+  }
+  renderCalendar();
+}
+
+// ===========================
+// Initial load & auth
+// ===========================
+
+document.addEventListener('DOMContentLoaded', () => {
+  // Attach event listeners
+  document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+  document.getElementById('notificationsBtn').addEventListener('click', toggleNotifications);
+  document.getElementById('avatar').addEventListener('click', toggleUserDropdown);
+  document.getElementById('logoutDropdownBtn').addEventListener('click', logout);
+  document.getElementById('toggleSidebar').addEventListener('click', toggleSidebar);
+  document.getElementById('mobileMenuBtn').addEventListener('click', toggleMobileSidebar);
+  document.getElementById('avatarUpload').addEventListener('change', function(e) {
+    handleImageUpload(e, 'avatarPreview');
+  });
+  
+  // Calendar navigation
+  document.getElementById('prevMonthBtn').addEventListener('click', () => changeMonth('prev'));
+  document.getElementById('nextMonthBtn').addEventListener('click', () => changeMonth('next'));
+  
+  // Attach nav clicks
+  document.querySelectorAll('#mainNav a[data-view]').forEach(a => {
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      showView(a.dataset.view);
+    });
+  });
+  
+  // Buttons
+  document.getElementById('newJobBtn').addEventListener('click', () => openJobModal());
+  document.getElementById('addJobBtn').addEventListener('click', () => openJobModal());
+  document.getElementById('addClientBtn').addEventListener('click', () => openClientModal());
+  document.getElementById('addTaskBtn').addEventListener('click', () => openTaskModal());
+  document.getElementById('addEventBtn').addEventListener('click', () => openEventModal());
+  document.getElementById('logoutBtn').addEventListener('click', logout);
+  
+  // Export buttons
+  document.getElementById('exportExcelBtn').addEventListener('click', () => exportJobsToExcel());
+  document.getElementById('exportPdfBtn').addEventListener('click', () => exportJobsToPDF());
+  document.getElementById('exportClientsExcelBtn').addEventListener('click', () => exportClientsToExcel());
+  document.getElementById('exportClientsPdfBtn').addEventListener('click', () => exportClientsToPDF());
+  document.getElementById('exportAppsExcelBtn').addEventListener('click', () => exportApplicationsToExcel());
+  document.getElementById('exportAppsPdfBtn').addEventListener('click', () => exportApplicationsToPDF());
+  
+  // Search functionality
+  setupSearch('jobs', 'jobsSearch', searchJobs);
+  setupSearch('clients', 'clientsSearch', searchClients);
+  setupSearch('applications', 'appsSearch', searchApplications);
+  
+  // Pagination buttons
+  document.getElementById('jobsPrevBtn').addEventListener('click', () => goToPage('jobs', state.pagination.jobs.currentPage - 1));
+  document.getElementById('jobsNextBtn').addEventListener('click', () => goToPage('jobs', state.pagination.jobs.currentPage + 1));
+  document.getElementById('clientsPrevBtn').addEventListener('click', () => goToPage('clients', state.pagination.clients.currentPage - 1));
+  document.getElementById('clientsNextBtn').addEventListener('click', () => goToPage('clients', state.pagination.clients.currentPage + 1));
+  document.getElementById('appsPrevBtn').addEventListener('click', () => goToPage('applications', state.pagination.applications.currentPage - 1));
+  document.getElementById('appsNextBtn').addEventListener('click', () => goToPage('applications', state.pagination.applications.currentPage + 1));
+  
+  // Close dropdowns when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.notifications') && !e.target.closest('.notifications-dropdown')) {
+      document.getElementById('notificationsDropdown').classList.remove('show');
+    }
+    if (!e.target.closest('.avatar') && !e.target.closest('.user-dropdown')) {
+      document.getElementById('userDropdown').classList.remove('show');
+    }
+  });
+  
+  // Initialize kanban board with drag and drop
+  initKanban();
+  
+  // Check token (try fetch profile)
+  if (state.token) {
+    apiFetch('/users/me', { method: 'GET' }).then(user => {
+      state.user = user;
+      document.getElementById('avatar').textContent = (user.name || 'م')[0];
+      showView('dashboard');
+    }).catch(err => {
+      console.warn('token invalid or no backend', err);
+      setToken(null);
+      showLoginOverlay();
+    });
+  } else {
+    showLoginOverlay();
+  }
+  
+  // Update notification badge
+  updateNotificationBadge();
+});
+
+// ===========================
+// Kanban Board functions
+// ===========================
+
+function initKanban() {
+  const kanbanItems = document.querySelectorAll('.kanban-item');
+  
+  kanbanItems.forEach(item => {
+    item.addEventListener('dragstart', () => {
+      item.classList.add('dragging');
+    });
+    
+    item.addEventListener('dragend', () => {
+      item.classList.remove('dragging');
+    });
+  });
+  
+  const kanbanColumns = document.querySelectorAll('.kanban-items');
+  
+  kanbanColumns.forEach(column => {
+    column.addEventListener('dragover', e => {
+      e.preventDefault();
+      const afterElement = getDragAfterElement(column, e.clientY);
+      const draggable = document.querySelector('.dragging');
+      if (afterElement == null) {
+        column.appendChild(draggable);
+      } else {
+        column.insertBefore(draggable, afterElement);
+      }
+    });
+  });
+}
+
+function getDragAfterElement(container, y) {
+  const draggableElements = [...container.querySelectorAll('.kanban-item:not(.dragging)')];
+  
+  return draggableElements.reduce((closest, child) => {
+    const box = child.getBoundingClientRect();
+    const offset = y - box.top - box.height / 2;
+    if (offset < 0 && offset > closest.offset) {
+      return { offset: offset, element: child };
+    } else {
+      return closest;
+    }
+  }, { offset: Number.NEGATIVE_INFINITY }).element;
+}
+
+function openTaskModal() {
+  const fields = [
+    { name: 'title', label: 'عنوان المهمة' },
+    { name: 'description', label: 'وصف المهمة', type: 'textarea' },
+    { name: 'assignee', label: 'المسؤول', type: 'select', options: [
+      { value: 'ahmed', label: 'أحمد' },
+      { value: 'sara', label: 'سارة' },
+      { value: 'mohamed', label: 'محمد' },
+      { value: 'fatima', label: 'فاطمة' }
+    ]},
+    { name: 'priority', label: 'الأولوية', type: 'select', options: [
+      { value: 'low', label: 'منخفضة' },
+      { value: 'medium', label: 'متوسطة' },
+      { value: 'high', label: 'عالية' }
+    ]}
+  ];
+  
+  openModal('إضافة مهمة جديدة', fields, async (data) => {
+    // In a real app, you would save to the server
+    showToast('تم إضافة المهمة بنجاح', 'success');
+    
+    // Add to kanban board
+    const newTask = document.createElement('div');
+    newTask.className = 'kanban-item';
+    newTask.draggable = true;
+    newTask.innerHTML = `
+      <div class="kanban-item-title">${data.title}</div>
+      <div class="kanban-item-details">${data.description}</div>
+      <div class="kanban-item-assignee">
+        <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0yMCAyMXYtMmE0IDQgMCAwIDAtNC00SDhhNCA0IDAgMCAwLTQgNHYyIj48L3BhdGg+PGNpcmNsZSBjeD0iMTIiIGN5PSI3IiByPSI0Ij48L2NpcmNsZT48L3N2Zz4=" alt="User">
+        <span>${data.assignee}</span>
+      </div>
+    `;
+    
+    // Add drag events
+    newTask.addEventListener('dragstart', () => {
+      newTask.classList.add('dragging');
+    });
+    
+    newTask.addEventListener('dragend', () => {
+      newTask.classList.remove('dragging');
+    });
+    
+    document.getElementById('kanban-open').appendChild(newTask);
+    
+    // Update count
+    const countElement = document.querySelector('#kanban-open + .kanban-column-count');
+    countElement.textContent = parseInt(countElement.textContent) + 1;
+  });
+}
+
+function openEventModal() {
+  const fields = [
+    { name: 'title', label: 'عنوان الحدث' },
+    { name: 'date', label: 'التاريخ', type: 'date' },
+    { name: 'time', label: 'الوقت', type: 'time' },
+    { name: 'description', label: 'وصف الحدث', type: 'textarea' }
+  ];
+  
+  openModal('إضافة حدث جديد', fields, async (data) => {
+    // In a real app, you would save to the server
+    showToast('تم إضافة الحدث بنجاح', 'success');
+    
+    // Add to events array
+    const newEvent = {
+      id: state.calendar.events.length + 1,
+      title: data.title,
+      date: new Date(data.date),
+      time: data.time,
+      description: data.description
+    };
+    
+    state.calendar.events.push(newEvent);
+    
+    // Re-render calendar to show the new event
+    renderCalendar();
+  });
+}
+
+// ===========================
+// Login Overlay
+// ===========================
+
+function showLoginOverlay() {
+  const html = `
+    <div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg, rgba(2,8,23,0.6), rgba(2,8,23,0.6));z-index:99">
+      <div style="background:var(--card);padding:20px;border-radius:12px;min-width:320px;box-shadow:0 20px 60px rgba(2,8,23,0.5);color:var(--text);">
+        <h3 style="margin-top:0">تسجيل دخول</h3>
+        <div style="margin:8px 0"><input id="loginEmail" placeholder="البريد الإلكتروني" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></div>
+        <div style="margin:8px 0"><input id="loginPass" placeholder="كلمة المرور" type="password" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text)"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+          <button class="btn primary" id="loginSubmit">دخول</button>
+          <button class="btn ghost" id="guestBtn">تجربة بدون تسجيل</button>
+        </div>
+        <div style="margin-top:10px;font-size:12px;color:var(--muted)">ملاحظة: لو لم يكن لديك back-end يمكنك الضغط على "تجربة بدون تسجيل" للعمل بالبيانات الوهمية.</div>
+      </div>
+    </div>
+  `;
+  const container = document.createElement('div');
+  container.id = 'loginOverlay';
+  container.innerHTML = html;
+  document.body.appendChild(container);
+
+  document.getElementById('loginSubmit').addEventListener('click', () => {
+    const email = document.getElementById('loginEmail').value;
+    const pass = document.getElementById('loginPass').value;
+    doLogin(email, pass).then(() => {
+      container.remove();
+      showView('dashboard');
+    }).catch(e => {
+      alert('فشل تسجيل الدخول — تأكد من الباك-إند أو استخدم تجربة بدون تسجيل');
+      console.error(e);
+    });
+  });
+
+  document.getElementById('guestBtn').addEventListener('click', () => {
+    // Load demo data
+    seedDemoData();
+    state.user = { name: 'Guest Demo' };
+    document.getElementById('avatar').textContent = 'G';
+    container.remove();
+    showView('dashboard');
+    showToast('تشغيل وضع العرض التجريبي');
+  });
+}
+
+async function doLogin(email, password) {
+  // Call backend
+  const res = await apiFetch('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+  if (res.token) {
+    setToken(res.token);
+    state.user = res.user;
+    document.getElementById('avatar').textContent = (res.user.name || 'م')[0];
+    showToast('تم تسجيل الدخول');
+  } else throw new Error('No token');
+}
+
+function logout() {
+  setToken(null);
+  state.user = null;
+  showToast('تم تسجيل الخروج');
+  setTimeout(() => location.reload(), 600);
+}
+
+// ===========================
+// Data loading functions
+// ===========================
+
+async function loadJobs() {
+  const tbody = document.querySelector('#jobsTable tbody');
+  tbody.innerHTML = '<tr><td colspan="6" class="muted text-center">جارٍ التحميل...</td></tr>';
+  try {
+    const data = await apiFetch('/jobs', { method: 'GET' });
+    state.jobs = data.jobs || data;
+    state.pagination.jobs.filteredData = [];
+    setupPagination('jobs');
+  } catch (err) {
+    console.warn('loadJobs failed', err);
+    // Fallback to demo data if no backend
+    if (!state.jobs.length) {
+      seedDemoData();
+      state.pagination.jobs.filteredData = [];
+      setupPagination('jobs');
+    }
+  }
+}
+
+function renderJobsTable(jobs = state.jobs) {
+  const tbody = document.querySelector('#jobsTable tbody');
+  tbody.innerHTML = '';
+  
+  if (jobs.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" class="muted text-center">لا توجد بيانات</td></tr>';
+    return;
+  }
+  
+  jobs.forEach((job, index) => {
+    const tr = document.createElement('tr');
+    setTimeout(() => {
+      tr.classList.add('animated');
+    }, index * 50);
+    
+    tr.innerHTML = `
+      <td>${job.title}</td>
+      <td>${(job.client && job.client.name) || job.clientName || '—'}</td>
+      <td>${job.location || '—'}</td>
+      <td>${job.salaryFrom ? job.salaryFrom + (job.salaryTo ? ' - ' + job.salaryTo : '') : '—'}</td>
+      <td>${job.type || '—'}</td>
+      <td>
+        <button class="btn icon" onclick='openJobModal(${JSON.stringify(job).replaceAll("'", "\\'")})'><i class="fa fa-pen"></i></button>
+        <button class="btn icon" onclick='deleteJob("${job._id || job.id}")'><i class="fa fa-trash" style="color:var(--danger)"></i></button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function exportJobsToExcel() {
+  const columns = [
+    { header: 'العنوان', key: 'title' },
+    { header: 'العميل', accessor: job => (job.client && job.client.name) || job.clientName || '' },
+    { header: 'الموقع', key: 'location' },
+    { header: 'الراتب', accessor: job => job.salaryFrom ? job.salaryFrom + (job.salaryTo ? ' - ' + job.salaryTo : '') : '' },
+    { header: 'النوع', key: 'type' },
+    { header: 'الحالة', key: 'status' }
+  ];
+  
+  const data = state.pagination.jobs.filteredData.length > 0 ? 
+    state.pagination.jobs.filteredData : state.jobs;
+  
+  exportToExcel(data, 'الوظائف', columns);
+}
+
+function exportJobsToPDF() {
+  const columns = [
+    { header: 'العنوان', key: 'title' },
+    { header: 'العميل', accessor: job => (job.client && job.client.name) || job.clientName || '' },
+    { header: 'الموقع', key: 'location' },
+    { header: 'الراتب', accessor: job => job.salaryFrom ? job.salaryFrom + (job.salaryTo ? ' - ' + job.salaryTo : '') : '' },
+    { header: 'النوع', key: 'type' }
+  ];
+  
+  const data = state.pagination.jobs.filteredData.length > 0 ? 
+    state.pagination.jobs.filteredData : state.jobs;
+  
+  exportToPDF(data, 'الوظائف', columns);
+}
+
+// ===========================
+// Clients functions
+// ===========================
+
+async function loadClients() {
+  const tbody = document.querySelector('#clientsTable tbody');
+  tbody.innerHTML = '<tr><td colspan="6" class="muted text-center">جارٍ التحميل...</td></tr>';
+  try {
+    const data = await apiFetch('/clients', { method: 'GET' });
+    state.clients = data.clients || data;
+    state.pagination.clients.filteredData = [];
+    setupPagination('clients');
+  } catch (err) {
+    console.warn('loadClients failed', err);
+    if (!state.clients.length) {
+      seedDemoData();
+      state.pagination.clients.filteredData = [];
+      setupPagination('clients');
+    }
+  }
+}
+
+function renderClientsTable(clients = state.clients) {
+  const tbody = document.querySelector('#clientsTable tbody');
+  tbody.innerHTML = '';
+  
+  if (clients.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" class="muted text-center">لا توجد بيانات</td></tr>';
+    return;
+  }
+  
+  clients.forEach((client, index) => {
+    const tr = document.createElement('tr');
+    setTimeout(() => {
+      tr.classList.add('animated');
+    }, index * 50);
+    
+    tr.innerHTML = `
+      <td>
+        ${client.image ? 
+          `<img src="${client.image}" alt="${client.name}" style="width:40px;height:40px;border-radius:8px;object-fit:cover">` : 
+          `<div class="avatar" style="width:40px;height:40px;font-size:14px">${(client.name || '—')[0]}</div>`
+        }
+      </td>
+      <td>${client.name}</td>
+      <td>${client.company || '-'}</td>
+      <td>${client.phone || '-'}</td>
+      <td>${client.email || '-'}</td>
+      <td>
+        <button class="btn icon" onclick='openClientModal(${JSON.stringify(client).replaceAll("'", "\\'")})'><i class="fa fa-pen"></i></button>
+        <button class="btn icon" onclick='deleteClient("${client._id || client.id}")'><i class="fa fa-trash" style="color:var(--danger)"></i></button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function exportClientsToExcel() {
+  const columns = [
+    { header: 'الاسم', key: 'name' },
+    { header: 'الشركة', key: 'company' },
+    { header: 'الهاتف', key: 'phone' },
+    { header: 'البريد', key: 'email' },
+    { header: 'العنوان', key: 'address' }
+  ];
+  
+  const data = state.pagination.clients.filteredData.length > 0 ? 
+    state.pagination.clients.filteredData : state.clients;
+  
+  exportToExcel(data, 'العملاء', columns);
+}
+
+function exportClientsToPDF() {
+  const columns = [
+    { header: 'الاسم', key: 'name' },
+    { header: 'الشركة', key: 'company' },
+    { header: 'الهاتف', key: 'phone' },
+    { header: 'البريد', key: 'email' }
+  ];
+  
+  const data = state.pagination.clients.filteredData.length > 0 ? 
+    state.pagination.clients.filteredData : state.clients;
+  
+  exportToPDF(data, 'العملاء', columns);
+}
+
+// ===========================
+// Applications functions
+// ===========================
+
+async function loadApplications() {
+  const tbody = document.querySelector('#appsTable tbody');
+  tbody.innerHTML = '<tr><td colspan="5" class="muted text-center">جارٍ التحميل...</td></tr>';
+  try {
+    const data = await apiFetch('/applications', { method: 'GET' });
+    state.applications = data.applications || data;
+    state.pagination.applications.filteredData = [];
+    setupPagination('applications');
+  } catch (err) {
+    console.warn('loadApplications failed', err);
+    if (!state.applications.length) {
+      seedDemoData();
+      state.pagination.applications.filteredData = [];
+      setupPagination('applications');
+    }
+  }
+}
+
+function renderApplicationsTable(applications = state.applications) {
+  const tbody = document.querySelector('#appsTable tbody');
+  tbody.innerHTML = '';
+  
+  if (applications.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" class="muted text-center">لا توجد بيانات</td></tr>';
+    return;
+  }
+  
+  applications.forEach((app, index) => {
+    const tr = document.createElement('tr');
+    setTimeout(() => {
+      tr.classList.add('animated');
+    }, index * 50);
+    
+    tr.innerHTML = `
+      <td>${app.applicantName}</td>
+      <td>${(app.job && app.job.title) || app.jobTitle || '-'}</td>
+      <td>${app.email || '-'}</td>
+      <td><span class="badge ${app.status || 'applied'}">${app.status || 'applied'}</span></td>
+      <td>
+        <button class="btn icon" onclick='viewApplication("${app._id || app.id}")'><i class="fa fa-eye"></i></button>
+        <button class="btn icon" onclick='deleteApplication("${app._id || app.id}")'><i class="fa fa-trash" style="color:var(--danger)"></i></button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function exportApplicationsToExcel() {
+  const columns = [
+    { header: 'المتقدم', key: 'applicantName' },
+    { header: 'الوظيفة', accessor: app => (app.job && app.job.title) || app.jobTitle || '' },
+    { header: 'البريد', key: 'email' },
+    { header: 'الهاتف', key: 'phone' },
+    { header: 'الحالة', key: 'status' }
+  ];
+  
+  const data = state.pagination.applications.filteredData.length > 0 ? 
+    state.pagination.applications.filteredData : state.applications;
+  
+  exportToExcel(data, 'طلبات_التوظيف', columns);
+}
+
+function exportApplicationsToPDF() {
+  const columns = [
+    { header: 'المتقدم', key: 'applicantName' },
+    { header: 'الوظيفة', accessor: app => (app.job && app.job.title) || app.jobTitle || '' },
+    { header: 'البريد', key: 'email' },
+    { header: 'الحالة', key: 'status' }
+  ];
+  
+  const data = state.pagination.applications.filteredData.length > 0 ? 
+    state.pagination.applications.filteredData : state.applications;
+  
+  exportToPDF(data, 'طلبات_التوظيف', columns);
+}
+
+// ===========================
+// Dashboard functions
+// ===========================
+
+async function loadDashboard() {
+  // Pull some counts and recent lists
+  try {
+    const jobsRes = await apiFetch('/jobs', { method: 'GET' });
+    const clientsRes = await apiFetch('/clients', { method: 'GET' });
+    const appsRes = await apiFetch('/applications', { method: 'GET' });
+    state.jobs = jobsRes.jobs || jobsRes;
+    state.clients = clientsRes.clients || clientsRes;
+    state.applications = appsRes.applications || appsRes;
+  } catch (e) {
+    console.warn('dashboard fetch failed', e);
+    if (!state.jobs.length) seedDemoData();
+  }
+  
+  document.getElementById('statJobs').textContent = state.jobs.length;
+  document.getElementById('statClients').textContent = state.clients.length;
+  document.getElementById('statApps').textContent = state.applications.filter(a => a.status === 'applied').length;
+  document.getElementById('statAvg').textContent = Math.floor(Math.random() * 10 + 7);
+
+  // Recent jobs table
+  const tbody = document.querySelector('#recentJobsTable tbody');
+  tbody.innerHTML = '';
+  state.jobs.slice(0, 5).forEach(j => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${j.title}</td><td>${(j.client && j.client.name) || j.clientName || '-'}</td><td>${j.location || '-'}</td><td><span class="badge ${j.status === 'open' ? 'open' : 'closed'}">${j.status}</span></td>`;
+    tbody.appendChild(tr);
+  });
+
+  // Activities
+  const acts = [
+    'تم إضافة وظيفة جديدة — مدير التوظيف',
+    'عمل عميل جديد — شركة البرمجيات',
+    'تم تقديم 3 طلبات لهذه الوظيفة',
+    'تحديث حالة وظيفة — مُغلقة'
+  ];
+  const actContainer = document.getElementById('activities');
+  actContainer.innerHTML = acts.map(a => `<div style="padding:8px 0;border-bottom:1px dashed var(--border)">${a}</div>`).join('');
+
+  // Apps chart
+  renderAppsChart();
+  
+  // Animate elements
+  setTimeout(animateElements, 100);
+}
+
+// ===========================
+// Charts functions
+// ===========================
+
+let appsChart = null, hireChart = null, clientsChart = null, jobsTypeChart = null, appsStatusChart = null;
+
+function renderAppsChart() {
+  const ctx = document.getElementById('appsChart').getContext('2d');
+  const labels = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(); 
+    d.setMonth(d.getMonth() - 5 + i);
+    return d.toLocaleString('ar', { month: 'short', year: '2-digit' });
+  });
+  const data = labels.map(() => Math.floor(Math.random() * 40) + 10);
+  
+  if (appsChart) appsChart.destroy();
+  
+  appsChart = new Chart(ctx, {
+    type: 'bar',
+    data: { 
+      labels, 
+      datasets: [{ 
+        label: 'الطلبات', 
+        data, 
+        borderRadius: 6, 
+        backgroundColor: 'rgba(31, 111, 235, 0.9)'
+      }] 
+    },
+    options: { 
+      responsive: true, 
+      plugins: { legend: { display: false } },
+      animation: {
+        duration: 2000,
+        easing: 'easeOutQuart'
+      }
+    }
+  });
+}
+
+function renderStatsCharts() {
+  // Hires chart
+  const hireCtx = document.getElementById('hireChart').getContext('2d');
+  const hireLabels = ['ينا', 'فبر', 'مارس', 'أبريل', 'ماي', 'يونيو'];
+  const hireData = hireLabels.map(() => Math.floor(Math.random() * 20) + 5);
+  
+  if (hireChart) hireChart.destroy();
+  
+  hireChart = new Chart(hireCtx, { 
+    type: 'line', 
+    data: { 
+      labels: hireLabels, 
+      datasets: [{ 
+        label: 'تعيينات', 
+        data: hireData, 
+        borderColor: '#22c1c3', 
+        backgroundColor: 'rgba(34, 193, 195, 0.08)', 
+        tension: 0.3,
+        fill: true
+      }] 
+    }, 
+    options: { 
+      plugins: { legend: { display: false } },
+      animation: {
+        duration: 2000,
+        easing: 'easeOutQuart'
+      }
+    } 
+  });
+
+  // Clients chart
+  const clientsCtx = document.getElementById('clientsChart').getContext('2d');
+  const cLabels = state.clients.slice(0, 5).map(c => c.name || c.company || 'عميل');
+  const cData = cLabels.map(() => Math.floor(Math.random() * 12) + 1);
+  
+  if (clientsChart) clientsChart.destroy();
+  
+  clientsChart = new Chart(clientsCtx, { 
+    type: 'doughnut', 
+    data: { 
+      labels: cLabels, 
+      datasets: [{ 
+        data: cData,
+        backgroundColor: [
+          'rgba(31, 111, 235, 0.8)',
+          'rgba(34, 193, 195, 0.8)',
+          'rgba(46, 204, 113, 0.8)',
+          'rgba(243, 156, 18, 0.8)',
+          'rgba(231, 76, 60, 0.8)'
+        ]
+      }] 
+    }, 
+    options: { 
+      plugins: { legend: { position: 'bottom' } },
+      animation: {
+        duration: 2000,
+        easing: 'easeOutQuart'
+      }
+    } 
+  });
+
+  // Jobs type chart
+  const jobsTypeCtx = document.getElementById('jobsTypeChart').getContext('2d');
+  const jobTypes = ['دوام كامل', 'دوام جزئي', 'عقد', 'عن بعد'];
+  const jobTypeData = jobTypes.map(() => Math.floor(Math.random() * 15) + 5);
+  
+  if (jobsTypeChart) jobsTypeChart.destroy();
+  
+  jobsTypeChart = new Chart(jobsTypeCtx, {
+    type: 'pie',
+    data: {
+      labels: jobTypes,
+      datasets: [{
+        data: jobTypeData,
+        backgroundColor: [
+          'rgba(31, 111, 235, 0.8)',
+          'rgba(34, 193, 195, 0.8)',
+          'rgba(46, 204, 113, 0.8)',
+          'rgba(243, 156, 18, 0.8)'
+        ]
+      }]
+    },
+    options: {
+      plugins: { legend: { position: 'bottom' } },
+      animation: {
+        duration: 2000,
+        easing: 'easeOutQuart'
+      }
+    }
+  });
+
+  // Applications status chart
+  const appsStatusCtx = document.getElementById('appsStatusChart').getContext('2d');
+  const statuses = ['مقدم', 'قيد المراجعة', 'مقابلة', 'مرفوض', 'تم التعيين'];
+  const statusData = statuses.map(() => Math.floor(Math.random() * 20) + 3);
+  
+  if (appsStatusChart) appsStatusChart.destroy();
+  
+  appsStatusChart = new Chart(appsStatusCtx, {
+    type: 'polarArea',
+    data: {
+      labels: statuses,
+      datasets: [{
+        data: statusData,
+        backgroundColor: [
+          'rgba(31, 111, 235, 0.7)',
+          'rgba(34, 193, 195, 0.7)',
+          'rgba(46, 204, 113, 0.7)',
+          'rgba(243, 156, 18, 0.7)',
+          'rgba(231, 76, 60, 0.7)'
+        ]
+      }]
+    },
+    options: {
+      plugins: { legend: { position: 'bottom' } },
+      animation: {
+        duration: 2000,
+        easing: 'easeOutQuart'
+      }
+    }
+  });
+}
+
+// ===========================
+// Job modal and CRUD
+// ===========================
+
+function openJobModal(job) {
+  const isEdit = !!job;
+  const fields = [
+    { name: 'title', label: 'عنوان الوظيفة', value: job ? job.title : '' },
+    { name: 'description', label: 'الوصف', type: 'textarea', value: job ? job.description : '' },
+    { name: 'client', label: 'العميل (ID أو اسم)', value: job ? (job.client ? job.client._id || job.client.id : job.clientName) : '' },
+    { name: 'location', label: 'الموقع', value: job ? job.location : '' },
+    { name: 'salaryFrom', label: 'راتب من', type: 'number', value: job ? job.salaryFrom : '' },
+    { name: 'salaryTo', label: 'راتب إلى', type: 'number', value: job ? job.salaryTo : '' },
+    { name: 'type', label: 'النوع', type: 'select', options: [
+      { value: 'full-time', label: 'دوام كامل' },
+      { value: 'part-time', label: 'دوام جزئي' },
+      { value: 'contract', label: 'عقد' },
+      { value: 'remote', label: 'عن بعد' }
+    ], value: job ? job.type : 'full-time' },
+    { name: 'status', label: 'الحالة', type: 'select', options: [
+      { value: 'open', label: 'متاحة' },
+      { value: 'closed', label: 'مغلقة' },
+      { value: 'paused', label: 'موقفة' }
+    ], value: job ? job.status : 'open' },
+  ];
+  
+  openModal(isEdit ? 'تعديل الوظيفة' : 'إضافة وظيفة', fields, async (data) => {
+    // Call API
+    if (isEdit) {
+      await apiFetch(`/jobs/${job._id || job.id}`, { method: 'PUT', body: JSON.stringify(data) });
+      showToast('تم تحديث الوظيفة');
+    } else {
+      await apiFetch('/jobs', { method: 'POST', body: JSON.stringify(data) });
+      showToast('تم إنشاء الوظيفة');
+    }
+    await loadJobs();
+  });
+}
+
+async function deleteJob(id) {
+  if (!confirm('هل تريد حذف هذه الوظيفة؟')) return;
+  try {
+    await apiFetch(`/jobs/${id}`, { method: 'DELETE' });
+    showToast('تم الحذف');
+    await loadJobs();
+  } catch (e) {
+    console.warn(e); 
+    showToast('فشل الحذف', 'error');
+  }
+}
+
+// ===========================
+// Client modal and CRUD
+// ===========================
+
+function openClientModal(client) {
+  const isEdit = !!client;
+  const fields = [
+    { name: 'name', label: 'الاسم', value: client ? client.name : '' },
+    { name: 'company', label: 'الشركة', value: client ? client.company : '' },
+    { name: 'email', label: 'البريد', type: 'email', value: client ? client.email : '' },
+    { name: 'phone', label: 'الهاتف', value: client ? client.phone : '' },
+    { name: 'address', label: 'العنوان', value: client ? client.address : '' },
+    { name: 'image', label: 'صورة العميل', type: 'file', accept: 'image/*', placeholder: 'اختر صورة' }
+  ];
+  
+  openModal(isEdit ? 'تعديل العميل' : 'إضافة عميل', fields, async (data) => {
+    // Handle file upload if present
+    const formData = new FormData();
+    for (const key in data) {
+      if (key === 'image' && data[key] instanceof File) {
+        formData.append('image', data[key]);
+      } else {
+        formData.append(key, data[key]);
+      }
+    }
+    
+    if (isEdit) {
+      await apiFetch(`/clients/${client._id || client.id}`, { 
+        method: 'PUT', 
+        body: formData 
+      });
+      showToast('تم تحديث العميل');
+    } else {
+      await apiFetch('/clients', { 
+        method: 'POST', 
+        body: formData 
+      });
+      showToast('تم إنشاء العميل');
+    }
+    await loadClients();
+  });
+}
+
+async function deleteClient(id) {
+  if (!confirm('هل تريد حذف هذا العميل؟')) return;
+  try {
+    await apiFetch(`/clients/${id}`, { method: 'DELETE' });
+    showToast('تم الحذف');
+    await loadClients();
+  } catch (e) { 
+    console.warn(e); 
+    showToast('فشل الحذف', 'error'); 
+  }
+}
+
+// ===========================
+// Application actions
+// ===========================
+
+function viewApplication(id) {
+  const app = state.applications.find(a => (a._id || a.id) === id);
+  if (!app) return alert('غير موجود');
+  
+  const fields = [
+    { name: 'applicantName', label: 'اسم المتقدم', value: app.applicantName },
+    { name: 'email', label: 'البريد', value: app.email, type: 'email' },
+    { name: 'phone', label: 'الهاتف', value: app.phone },
+    { name: 'coverLetter', label: 'خطاب التقديم', type: 'textarea', value: app.coverLetter || '' },
+    { name: 'resume', label: 'السيرة الذاتية', type: 'file', accept: '.pdf,.doc,.docx', placeholder: 'اختر ملف' },
+    { name: 'status', label: 'الحالة', type: 'select', options: [
+      { value: 'applied', label: 'مقدم' },
+      { value: 'reviewing', label: 'قيد المراجعة' },
+      { value: 'interview', label: 'مقابلة' },
+      { value: 'rejected', label: 'مرفوض' },
+      { value: 'hired', label: 'تم التعيين' }
+    ], value: app.status }
+  ];
+  
+  openModal('تفاصيل الطلب', fields, async (data) => {
+    const formData = new FormData();
+    for (const key in data) {
+      if (key === 'resume' && data[key] instanceof File) {
+        formData.append('resume', data[key]);
+      } else {
+        formData.append(key, data[key]);
+      }
+    }
+    
+    await apiFetch(`/applications/${id}`, { 
+      method: 'PUT', 
+      body: formData 
+    });
+    showToast('تم تحديث حالة الطلب');
+    await loadApplications();
+  });
+}
+
+async function deleteApplication(id) {
+  if (!confirm('هل تريد حذف هذا الطلب؟')) return;
+  try {
+    await apiFetch(`/applications/${id}`, { method: 'DELETE' });
+    showToast('تم الحذف');
+    await loadApplications();
+  } catch (e) { 
+    console.warn(e); 
+    showToast('فشل الحذف', 'error'); 
+  }
+}
+
+// ===========================
+// Demo seed data (if no backend)
+// ===========================
+
+function seedDemoData() {
+  // Clients
+  state.clients = [
+    { _id: 'c1', name: 'شركة تكنو', company: 'Techno Co', phone: '01001112233', email: 'contact@techno.com' },
+    { _id: 'c2', name: 'شركة البرمجيات', company: 'SoftLab', phone: '01002223344', email: 'info@softlab.com' },
+    { _id: 'c3', name: 'مؤسسة الحلول', company: 'Solutions', phone: '01003334455', email: 'hello@solutions.com' },
+    { _id: 'c4', name: 'أحمد السعدي', company: 'مطور مستقل', phone: '01004445566', email: 'ahmed@example.com' },
+    { _id: 'c5', name: 'شركة النظم', company: 'Systems Co', phone: '01005556677', email: 'info@systems.com' }
+  ];
+  
+  // Jobs
+  state.jobs = [
+    { _id: 'j1', title: 'مطور فلاتر', description: 'تطوير تطبيقات موبايل', client: state.clients[0], location: 'القاهرة', salaryFrom: 6000, salaryTo: 10000, type: 'full-time', status: 'open' },
+    { _id: 'j2', title: 'مهندس بيانات', description: 'ETL وBI', client: state.clients[1], location: 'الإسكندرية', salaryFrom: 8000, type: 'contract', status: 'open' },
+    { _id: 'j3', title: 'محاسب', description: 'محاسبة مالية', client: state.clients[2], location: 'الجيزة', salaryFrom: 5000, type: 'full-time', status: 'closed' },
+    { _id: 'j4', title: 'مصمم UI/UX', description: 'تصميم واجهات المستخدم', client: state.clients[3], location: 'عن بعد', salaryFrom: 7000, salaryTo: 9000, type: 'remote', status: 'open' },
+    { _id: 'j5', title: 'مدير مشاريع', description: 'إدارة فرق التطوير', client: state.clients[4], location: 'الرياض', salaryFrom: 12000, salaryTo: 15000, type: 'full-time', status: 'open' },
+    { _id: 'j6', title: 'مطور Laravel', description: 'تطوير تطبيقات ويب', client: state.clients[0], location: 'القاهرة', salaryFrom: 8000, salaryTo: 11000, type: 'full-time', status: 'open' }
+  ];
+  
+  // Applications
+  state.applications = [
+    { _id: 'a1', applicantName: 'أحمد علي', email: 'a.ali@mail.com', phone: '01112223344', job: state.jobs[0], status: 'applied', coverLetter: 'مهتم بهذه الوظيفة' },
+    { _id: 'a2', applicantName: 'سارة محمد', email: 's.moh@mail.com', phone: '01098765432', job: state.jobs[1], status: 'reviewing' },
+    { _id: 'a3', applicantName: 'محمد أحمد', email: 'm.ahmed@mail.com', phone: '01011223344', job: state.jobs[2], status: 'interview' },
+    { _id: 'a4', applicantName: 'فاطمة حسن', email: 'f.hassan@mail.com', phone: '01022334455', job: state.jobs[3], status: 'hired' },
+    { _id: 'a5', applicantName: 'علي كمال', email: 'a.kamal@mail.com', phone: '01033445566', job: state.jobs[4], status: 'rejected' },
+    { _id: 'a6', applicantName: 'ريم عبدالله', email: 'r.abdullah@mail.com', phone: '01044556677', job: state.jobs[0], status: 'applied' }
+  ];
+}
+
+// ===========================
+// Fallback: if API not ready, load demo data
+// ===========================
+
+setTimeout(() => {
+  if (!state.jobs.length && !state.token) {
+    seedDemoData();
+    // Setup pagination after loading demo data
+    ['jobs', 'clients', 'applications'].forEach(type => {
+      state.pagination[type].filteredData = [];
+      if (state[type].length > 0) {
+        setupPagination(type);
+      }
+    });
+  }
+}, 400);
+
+// Initialize the application
+showView('dashboard');
+</script>
+
+</body>
+</html>
